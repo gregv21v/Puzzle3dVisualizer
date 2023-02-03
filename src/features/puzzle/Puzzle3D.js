@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { drawPointsAsPathOnCanvas } from '../../lib/geometry-canvas';
+import { createRectanglePoints } from '../../lib/geometry-shapes';
+import { dovetailPoints } from '../../lib/geometry-pieces';
 
 /**
  * Puzzle3D - a 3d representation of the puzzle
@@ -47,8 +50,15 @@ export default class Puzzle3D {
      * @param {string} color the color of the face to draw
      */
     drawFace(index, color) {
-        this._contexts[index].fillStyle = color
-        this._contexts[index].fillRect(0, 0, 500, 500)
+        this._contexts[index].fillStyle = "none"
+        
+        drawPointsAsPathOnCanvas(
+            dovetailPoints(
+                createRectanglePoints({x: 250, y: 250}, 400, 400),
+                5, 100, true
+            ), 
+            this._contexts[index], 2, color, color
+        )
 
         this._contexts[index].font = "250px Arial";
         this._contexts[index].textBaseline = "middle";
@@ -92,8 +102,6 @@ export default class Puzzle3D {
 
         let typedArray = new Float32Array(colorsArray);
 
-        
-        
         this._geometry.setAttribute('color', new THREE.BufferAttribute(typedArray, 3))
         
     }

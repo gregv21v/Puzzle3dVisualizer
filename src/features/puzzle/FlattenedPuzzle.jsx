@@ -1,19 +1,16 @@
 import { For } from "solid-js";
-import Piece from "./Piece";
+import Piece from "../piece/Piece";
+import { translatePoints } from "../../lib/geometry-math";
 
 
 
 export default function FlattenedPuzzle(props) {
-    const spacing = 10
-    
+    const spacing = 40;
     return <g>
         <For each={props.faces}>
             {
                 (face, i) => <Piece
-                    x={props.x}
-                    y={props.y + i() * (face.height + spacing)}
-                    width={face.width}
-                    height={face.height}
+                    points={translatePoints(face.points, -100, (i()-1) * (100 + spacing))}
                     index={i()}
                     selected={face.selected}
                     onFaceClicked={props.onFaceClicked}

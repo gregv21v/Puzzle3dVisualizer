@@ -1,9 +1,7 @@
 
 
 
-export default function Piece(props) {
-
-
+export default function RectanglePiece(props) {
     return <g>
         <rect 
             width={props.width} 

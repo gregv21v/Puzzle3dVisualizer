@@ -1,35 +1,29 @@
 import styles from './App.module.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { createEffect, createSignal } from 'solid-js';
+import { createSignal, onMount } from 'solid-js';
 import { createStore } from 'solid-js/store';
-import Puzzle from './FlattenedPuzzle';
-import Puzzle3D from './Puzzle3D';
-import { getRegularPolygonSides } from './util';
+import { createRectanglePoints } from './lib/geometry-shapes';
+import { pointsToShapePath } from './lib/geometry-threejs';
+import Puzzle3D from './features/puzzle/Puzzle3D';
+import { getCenter, scalePoints, translatePoints } from './lib/geometry-math';
+import { convertPieceFromLegacy, createPuzzlePieceFromPoints, generatePointsForPiece } from './lib/puzzle-piece';
+import { Modal } from './features/modal/Modal';
+import Puzzle from './features/puzzle/Puzzle';
 
-
-/** TODO:
- * Convert a svg path into a shape path 
- *    https://threejs.org/docs/?q=shapepath#api/en/extras/core/ShapePath
- *    https://threejs.org/docs/?q=shapepath#api/en/extras/core/Path
- */
 function App() {
-  let canvas3D, canvas2D;
-  const [scale, setScale] = createSignal(1);
-  const [faces, setFaces] = createStore([
-    {selected: false, width: 50, height: 50},
-    {selected: false, width: 50, height: 50},
-    {selected: false, width: 50, height: 50},
-    {selected: false, width: 50, height: 50},
-    {selected: false, width: 50, height: 50},
-    {selected: false, width: 50, height: 50}
-  ])
-
-  // Scene.
+  let canvas3D;
   var camera, scene, renderer, light, cube;
   var orbitControls;
   var puzzle;
-  
+  let inputFile;
+  const [scale, setScale] = createSignal(1);
+  const [faces, setFaces] = createStore([
+    createPuzzlePieceFromPoints(createRectanglePoints({x: 0, y: 0}, 100, 100))
+  ])
+  const [pieces, setPieces] = createStore({})
+  const [isModalShown, setIsModalShown] = createSignal(true);
+  const [file, setFile] = createSignal(null)
 
   function init() {
 
@@ -65,31 +59,6 @@ function App() {
     scene = new THREE.Scene();
 
     // Lights.
-
-    puzzle = new Puzzle3D(0, 0, 0);
-    puzzle.addToScene(scene);
-
-    let polygon = getRegularPolygonSides(6, 50, {x: 0, y: 0})
-    let shapes = pointsTo3dPath(polygon).toShapes(true);
-
-    let material = [
-      new THREE.MeshBasicMaterial({color: "blue"}),
-      new THREE.MeshBasicMaterial({color: "green"}),
-    ]
-
-    for (const shape of shapes) {
-      let shape3d = new THREE.ExtrudeGeometry(shape, {
-        depth: 10,
-        bevelEnabled: false
-      })
-
-      let mesh = new THREE.Mesh(shape3d, material)
-      scene.add(mesh);
-    }
-
-    
-
-
     /*
     puzzle.colorFaces([
       new THREE.Color(0xffffff),
@@ -100,6 +69,41 @@ function App() {
       new THREE.Color(0xffffff)
     ]);
     */
+  }
+
+  function renderPuzzle() {
+    let z = 0; 
+    for (const piece of Object.values(pieces)) {
+      z += 20
+      let newerPiece = convertPieceFromLegacy(piece)
+      console.log(newerPiece);
+      let center = getCenter(newerPiece.points)
+
+
+      let points = generatePointsForPiece(newerPiece)
+      points = translatePoints(points, -center.x, -center.y);
+      points = scalePoints(points, 0.25);
+      
+      let shapes = pointsToShapePath(points).toShapes(true);
+
+      let material = [
+        new THREE.MeshBasicMaterial({color: "blue"}),
+        new THREE.MeshBasicMaterial({color: "green"}),
+      ]
+
+      for (const shape of shapes) {
+        let shape3d = new THREE.ExtrudeGeometry(shape, {
+          depth: 5,
+          bevelEnabled: false
+        })
+
+        let mesh = new THREE.Mesh(shape3d, material)
+
+        mesh.position.set(0, 0, z);
+        scene.add(mesh);
+      }
+    }
+      
   }
 
   // Draw Scene
@@ -115,19 +119,23 @@ function App() {
   }
 
 
-  function pointsTo3dPath(points) {
-    let path = new THREE.ShapePath();
-    let start = true;
-    for (const point of points) {
-        if(start) {
-            path.moveTo(point.x, point.y)
-            start = false;
-        } else {
-            path.lineTo(point.x, point.y)
-        }
-    }
-    return path;
-  }
+  /**
+     * importFile()
+     * @description imports a file
+     */
+  function importFile() {
+    setIsModalShown(false)
+
+    const reader = new FileReader();
+    reader.addEventListener("load", (event) => {
+        setPieces(JSON.parse(event.target.result))
+        renderPuzzle();
+    })
+
+    reader.readAsText(file())
+
+    
+}
 
 
   
@@ -151,27 +159,72 @@ function App() {
   }
 
 
-  createEffect(() => {
+  onMount(() => {
     init();
     render();
   })
 
 
+  function renderModal(type) {
+    switch(type) {
+        case "export":
+            /*return (
+                <Modal show={isModalShown} handleClose={() => setIsModalShown(false)}>
+                    <h1>Export as {fileType}</h1>
+                    <p>Do not add the file extension to the end of the filename. That will be done automatically.</p>
+                    Filename: <input onChange={(event) => filenameChange(event)} type="text" value={filename}></input>
+                    <button onClick={exportFile}>Export</button>
+                </Modal>
+            )*/
+            return <div></div>
+        case "import": 
+            return (
+                <Modal 
+                  show={isModalShown()} 
+                  handleClose={() => {
+                    setIsModalShown(false)
+                    console.log(isModalShown());
+                    console.log("closed");
+                  }}>
+                    <h1>Select a file of type .json to import</h1>
+                    <input 
+                        type="file" 
+                        id="file" 
+                        ref={inputFile} 
+                        accept=".json" 
+                        onChange={event => setFile(event.target.files[0])}
+                    ></input>
+                    <button onClick={importFile}>Import</button>
+                </Modal>
+            )
+        default: break;
+    }
+  }
+
+
   return (
-    <div>
+    <div style={{overflow: "hidden"}}>
+        
+
         <canvas ref={canvas3D} class={styles.canvas3D}></canvas>
+        
 
         <div class={styles.view2DDiv}>
-            <svg ref={canvas2D} class={styles.canvas2D}>
-                <Puzzle 
-                  x={10} y={10} 
-                  faces={faces}
-                  onFaceClicked={onFaceClicked}
-                ></Puzzle>
-            </svg>
+            <button onclick={() => setIsModalShown(true)}>Load</button>
+            <button>Save</button>
+            <Puzzle pieces={pieces}>
+
+            </Puzzle>
+
+            
         </div>
+
+        {renderModal("import")}
+        
         
         <div id="labels"></div>
+
+        
     </div>
   );
 }
